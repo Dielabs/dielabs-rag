@@ -1,7 +1,8 @@
 """Ricerca su una KB (ADR-0002, Blocco 5).
 
 Una KB per richiesta: software e versione. Ricerca ibrida in Qdrant (denso bge-m3 + BM25, fusione RRF),
-deduplica dei testi identici dentro la KB, reranker sui testi distinti, nessuna soglia sul punteggio.
+deduplica dei testi identici dentro la KB, reranker sui testi distinti, nessuna soglia sul punteggio,
+un risultato per sezione (le parti di una sezione lunga si uniscono).
 Scrive un log verboso per richiesta in data/logs/search/ (ADR-0004).
 """
 import argparse
@@ -74,6 +75,19 @@ def dedupe(points: list, prefer_paths: list[str]) -> list[dict]:
     return out
 
 
+def merge_parts(ranked: list[dict]) -> list[dict]:
+    """Le parti di una stessa sezione (stesso section_id) diventano un risultato solo: resta la parte
+    con il punteggio più alto, cioè la prima nell'ordine del reranker."""
+    seen, out = set(), []
+    for r in ranked:
+        sid = r["payload"]["section_id"]
+        if sid in seen:
+            continue
+        seen.add(sid)
+        out.append(r)
+    return out
+
+
 def search(query: str, software: str, version: str) -> dict:
     cfg = load_config()
     s = cfg["search"]
@@ -87,7 +101,7 @@ def search(query: str, software: str, version: str) -> dict:
     t2 = time.perf_counter()
     for r, sc in zip(distinct, scores):
         r["rerank_score"] = sc
-    ranked = sorted(distinct, key=lambda r: -r["rerank_score"])
+    ranked = merge_parts(sorted(distinct, key=lambda r: -r["rerank_score"]))
     results = []
     for i, r in enumerate(ranked[: s["top"]], 1):
         pl = r["payload"]
@@ -102,7 +116,7 @@ def search(query: str, software: str, version: str) -> dict:
     log = {
         "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "query": query, "software": software, "version": version,
-        "candidates": len(points), "distinct": len(distinct), "returned": len(results),
+        "candidates": len(points), "distinct": len(distinct), "sections": len(ranked), "returned": len(results),
         "seconds_hybrid": round(t1 - t0, 3), "seconds_rerank": round(t2 - t1, 3),
         "hybrid": [{"rank": i + 1, "score": p.score, "path": p.payload["path"], "anchor": p.payload["anchor"],
                     "section_id": p.payload["section_id"], "section_part": p.payload["section_part"]}
@@ -121,7 +135,7 @@ def search(query: str, software: str, version: str) -> dict:
 
 def show(log: dict) -> None:
     print(f"{log['software']} {log['version']} — {log['query']}")
-    print(f"{log['candidates']} candidati, {log['distinct']} testi distinti, "
+    print(f"{log['candidates']} candidati, {log['distinct']} testi distinti, {log['sections']} sezioni, "
           f"ricerca {log['seconds_hybrid']} s, reranker {log['seconds_rerank']} s\n")
     for r in log["results"]:
         print(f"{r['rank']:>2}. [{r['rerank_score']:.2f}] {' > '.join(r['headings'])}")

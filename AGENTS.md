@@ -10,5 +10,6 @@ Qui: codice, schede dei software (`sources/`), Makefile. I dati prodotti stanno 
 - `make chunks` / `make load` (stesse variabili) — taglio in pezzi e caricamento in Qdrant (`make qdrant` per accenderlo)
 - `make report SOFTWARE=vllm A=0.29.0 B=0.30.0` — report delle differenze tra due versioni in `data/reports/<software>/<A>_<B>.md`, senza LLM
 - `make search SOFTWARE=vllm VERSION=0.30.0 Q="domanda"` — ricerca su una KB (ibrida + deduplica + reranker), log in `data/logs/search/`
+- `make ask SOFTWARE=vllm VERSION=0.30.0 Q="domanda"` — risposta con citazioni (GLM 5.3 Flash su OpenRouter, solo FP8), log in `data/logs/answer/`; serve `OPENROUTER_API_KEY` in `.env`
 
 Prosa in italiano, codice e identificatori in inglese. Commit piccoli, messaggio in italiano.

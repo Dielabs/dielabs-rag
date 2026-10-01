@@ -25,3 +25,16 @@ search:                    # una KB per richiesta (ADR-0002)
   prefetch: 50             # candidati per ciascuna delle due ricerche (denso, BM25) prima della fusione RRF
   candidates: 30           # candidati dopo la fusione, prima della deduplica
   top: 10                  # risultati restituiti dopo il reranker
+
+answer:                    # risposta con citazioni (Blocco 6)
+  sections: 5              # sezioni intere passate al modello
+  max_chars_section: 12000 # tetto per singola sezione, oltre si taglia in coda
+  max_chars_total: 30000   # tetto totale del contesto (circa 7.500 token)
+
+openrouter:                # GLM 5.3 Flash, solo provider FP8 (ADR-0003); chiave in .env
+  url: https://openrouter.ai/api/v1
+  model: z-ai/glm-5.3-flash
+  quantizations: [fp8]
+  max_tokens: 1500
+  temperature: 0.2
+  timeout: 180

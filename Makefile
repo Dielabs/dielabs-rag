@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus qdrant chunks load report search
+.PHONY: venv versions build extract corpus qdrant chunks load report search ask
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -38,3 +38,7 @@ report:            ## report delle differenze tra due versioni (ADR-0008), es. A
 search:            ## ricerca su una KB, es. make search SOFTWARE=vllm VERSION=0.30.0 Q="how do I enable prefix caching"
 	@test -n "$(Q)" || (echo "Serve Q=\"domanda\""; exit 1)
 	$(PY) src/search.py $(SOFTWARE) $(VERSION) -- "$(Q)"
+
+ask:               ## risposta con citazioni su una KB, es. make ask SOFTWARE=vllm VERSION=0.30.0 Q="how do I enable prefix caching"
+	@test -n "$(Q)" || (echo "Serve Q=\"domanda\""; exit 1)
+	$(PY) src/answer.py $(SOFTWARE) $(VERSION) -- "$(Q)"
