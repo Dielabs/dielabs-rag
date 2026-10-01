@@ -15,3 +15,13 @@ embedding:                 # bge-m3 su Infinity (ADR-0003)
   model: BAAI/bge-m3
   batch_size: 16
   timeout: 300
+
+reranker:                  # bge-reranker-v2-m3 sullo stesso Infinity (ADR-0003)
+  url: http://192.168.4.82:7997
+  model: BAAI/bge-reranker-v2-m3
+  timeout: 120
+
+search:                    # una KB per richiesta (ADR-0002)
+  prefetch: 50             # candidati per ciascuna delle due ricerche (denso, BM25) prima della fusione RRF
+  candidates: 30           # candidati dopo la fusione, prima della deduplica
+  top: 10                  # risultati restituiti dopo il reranker

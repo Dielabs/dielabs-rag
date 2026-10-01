@@ -26,3 +26,10 @@ extract:
     - search/
     - assets/
   public_url: https://docs.vllm.ai/en/v{version}/
+
+search:
+  # quando lo stesso testo sta in più pagine (parametri del motore copiati in ogni pagina CLI),
+  # si mostra la copia nella prima di queste pagine (ADR-0002)
+  prefer_paths:
+    - cli/serve/
+    - configuration/engine_args/
