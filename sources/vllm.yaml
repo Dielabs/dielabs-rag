@@ -1,0 +1,28 @@
+# Scheda di configurazione del software vLLM.
+name: vllm
+display_name: vLLM
+repo: https://github.com/vllm-project/vllm.git
+
+versions:
+  # ultime N minori stabili, ognuna alla .0; niente release candidate, patch ignorate
+  rule: latest_minors
+  keep: 3
+
+build:
+  image: python:3.12
+  requirements: requirements/docs.txt
+  config: mkdocs.yaml
+  env:
+    API_AUTONAV_EXCLUDE: vllm   # riferimento API escluso (ADR-0001)
+
+extract:
+  content_selector: article.md-content__inner
+  remove_selectors:
+    - a.headerlink
+    - aside.md-source-file
+    - a.md-content__button
+  exclude_paths:
+    - api/
+    - search/
+    - assets/
+  public_url: https://docs.vllm.ai/en/v{version}/
