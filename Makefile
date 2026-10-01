@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus qdrant chunks load
+.PHONY: venv versions build extract corpus qdrant chunks load report
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -30,3 +30,7 @@ chunks:            ## taglio in pezzi di una versione (ADR-0007)
 load:              ## carica i pezzi di una versione in Qdrant (ADR-0007)
 	@test -n "$(VERSION)" || (echo "Serve VERSION=..."; exit 1)
 	$(PY) src/load.py $(SOFTWARE) $(VERSION)
+
+report:            ## report delle differenze tra due versioni (ADR-0008), es. A=0.29.0 B=0.30.0
+	@test -n "$(A)" -a -n "$(B)" || (echo "Servono A=... e B=..."; exit 1)
+	$(PY) src/report.py $(SOFTWARE) $(A) $(B)
