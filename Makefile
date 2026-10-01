@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus qdrant
+.PHONY: venv versions build extract corpus qdrant chunks
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -22,3 +22,7 @@ corpus: build extract   ## build + estrazione di una versione
 
 qdrant:            ## avvia Qdrant in Docker (ADR-0006)
 	docker compose up -d qdrant
+
+chunks:            ## taglio in pezzi di una versione (ADR-0007)
+	@test -n "$(VERSION)" || (echo "Serve VERSION=..."; exit 1)
+	$(PY) src/chunk.py $(SOFTWARE) $(VERSION)

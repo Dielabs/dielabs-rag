@@ -1,7 +1,8 @@
 """Estrazione del contenuto delle pagine dal sito costruito (ADR-0005).
 
 Input: data/build/<software>/<versione>/site. Output: data/corpus/<software>/<versione>/pages.jsonl,
-una riga per pagina con software, versione, percorso, indirizzo pubblico, titolo e testo in Markdown.
+una riga per pagina con software, versione, percorso, indirizzo pubblico, titolo, testo in Markdown
+e i titoli della pagina in ordine come [livello, id] (le ancore dei link, ADR-0007).
 """
 import argparse
 import json
@@ -42,7 +43,7 @@ def unfold_tabs(content, soup) -> None:
         tabset.replace_with(wrapper)
 
 
-def extract_page(html: Path, cfg: dict) -> tuple[str, str] | None:
+def extract_page(html: Path, cfg: dict) -> tuple[str, str, list] | None:
     soup = BeautifulSoup(html.read_text(encoding="utf-8"), "html.parser")
     content = soup.select_one(cfg["content_selector"])
     if content is None:
@@ -53,8 +54,9 @@ def extract_page(html: Path, cfg: dict) -> tuple[str, str] | None:
     unfold_tabs(content, soup)
     h1 = content.find("h1")
     title = h1.get_text(" ", strip=True) if h1 else (soup.title.get_text(strip=True) if soup.title else "")
+    heads = [[int(h.name[1]), h.get("id", "")] for h in content.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])]
     md = markdownify(str(content), heading_style="ATX", escape_underscores=False, escape_asterisks=False).strip()
-    return title, md
+    return title, md, heads
 
 
 def extract(software: str, version: str) -> dict:
@@ -72,9 +74,9 @@ def extract(software: str, version: str) -> dict:
             if res is None or not res[1]:
                 skipped.append(rel)
                 continue
-            title, md = res
+            title, md, heads = res
             rec = {"software": software, "version": version, "path": rel,
-                   "url": base + rel, "title": title, "markdown": md}
+                   "url": base + rel, "title": title, "markdown": md, "headings": heads}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             written += 1
     if written == 0:
