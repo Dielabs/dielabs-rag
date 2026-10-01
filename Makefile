@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus
+.PHONY: venv versions build extract corpus qdrant
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -19,3 +19,6 @@ extract:           ## estrazione delle pagine dal sito costruito
 	$(PY) src/extract.py $(SOFTWARE) $(VERSION)
 
 corpus: build extract   ## build + estrazione di una versione
+
+qdrant:            ## avvia Qdrant in Docker (ADR-0006)
+	docker compose up -d qdrant
