@@ -4,3 +4,14 @@ chunking:                  # taglio in pezzi (ADR-0007)
   max_chars: 3200          # tetto di un pezzo, circa 800 token
   code_max_chars: 20000    # oltre, un blocco di codice si divide (limite di bge-m3 con margine per il codice)
   overlap_max_chars: 400   # sovrapposizione solo se l'ultimo paragrafo è più corto di così
+
+qdrant:                    # ADR-0006
+  url: http://localhost:6333
+  collection: docs
+  timeout: 120
+
+embedding:                 # bge-m3 su Infinity (ADR-0003)
+  url: http://192.168.4.82:7997
+  model: BAAI/bge-m3
+  batch_size: 16
+  timeout: 300
