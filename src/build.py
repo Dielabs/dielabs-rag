@@ -6,6 +6,7 @@ più build.log e build.json (tempi ed esito).
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import time
@@ -25,6 +26,16 @@ def clone(source: dict, version: str, dest: Path) -> None:
          source["repo"], str(dest)],
         check=True,
     )
+
+
+def pip_args(b: dict) -> str:
+    """Requisiti della build: un file nel repo del software ('requirements')
+    oppure una lista di pacchetti nella scheda ('packages')."""
+    if b.get("requirements"):
+        return f"-r {shlex.quote(b['requirements'])}"
+    if b.get("packages"):
+        return " ".join(shlex.quote(p) for p in b["packages"])
+    raise SystemExit("La scheda deve indicare build.requirements oppure build.packages")
 
 
 def build(software: str, version: str) -> dict:
@@ -50,7 +61,7 @@ def build(software: str, version: str) -> dict:
     script = (
         "git config --global --add safe.directory /src "
         "&& chown -R 0:0 /root/.cache/pip "
-        f"&& pip install --quiet --root-user-action=ignore -r {b['requirements']} "
+        f"&& pip install --quiet --root-user-action=ignore {pip_args(b)} "
         f"&& mkdocs build -f {b['config']} -d /out/site; "
         f"rc=$?; chown -R {uid}:{gid} /src /out /root/.cache/pip; exit $rc"
     )

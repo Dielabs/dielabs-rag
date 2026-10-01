@@ -1,0 +1,40 @@
+# Scheda di configurazione del software GuideLLM.
+name: guidellm
+display_name: GuideLLM
+repo: https://github.com/vllm-project/guidellm.git
+
+versions:
+  # solo l'ultima release stabile (tag), non il ramo main
+  rule: latest_release
+  keep: 1
+
+build:
+  image: python:3.12
+  # GuideLLM non ha un file di requisiti per la documentazione: lista copiata
+  # da .github/workflows/release.yml (passo "Install mkdocs dependencies"), senza versioni fissate come lì
+  packages:
+    - mkdocs<2.0.0
+    - mkdocs-material
+    - mike
+    - mkdocs-gen-files
+    - mkdocs-nav-weight
+    - mkdocs-section-index
+    - mkdocs-minify-plugin
+    - mkdocstrings[python]
+    - mkdocs-api-autonav
+  config: mkdocs.yml
+  env:
+    PYTHONPATH: src   # il riferimento API cerca il pacchetto guidellm, che sta in src/ e non viene installato
+
+extract:
+  content_selector: article.md-content__inner
+  remove_selectors:
+    - a.headerlink
+    - aside.md-source-file
+    - a.md-content__button
+  exclude_paths:
+    - reference/   # riferimento API escluso (ADR-0001)
+    - zh/          # traduzioni fuori, solo inglese (ADR-0001)
+    - search/
+    - assets/
+  public_url: https://vllm-project.github.io/guidellm/{version}/
