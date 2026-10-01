@@ -45,7 +45,7 @@ def resolve_versions(source: dict) -> list[str]:
         minors = sorted({(a, b) for a, b, _ in stable})[-keep:]
         return [f"{a}.{b}.0" for a, b in minors if (a, b, 0) in stable]
     if rule == "latest_release":
-        return [".".join(map(str, sorted(stable)[-1]))]
+        return [".".join(map(str, v)) for v in sorted(stable)[-keep:]]
     raise SystemExit(f"Regola di versione sconosciuta: {rule}")
 
 

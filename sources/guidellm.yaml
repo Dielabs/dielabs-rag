@@ -4,9 +4,9 @@ display_name: GuideLLM
 repo: https://github.com/vllm-project/guidellm.git
 
 versions:
-  # solo l'ultima release stabile (tag), non il ramo main
+  # ultime due release stabili (tag), non il ramo main (ADR-0001)
   rule: latest_release
-  keep: 1
+  keep: 2
 
 build:
   image: python:3.12
