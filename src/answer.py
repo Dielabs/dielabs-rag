@@ -48,12 +48,38 @@ def fetch_section(client: QdrantClient, cfg: dict, software: str, version: str, 
     return text
 
 
+def subsections(client: QdrantClient, cfg: dict, software: str, version: str, r: dict) -> list[dict]:
+    """Le sottosezioni di una sezione: stessa pagina, titoli che iniziano con i suoi, in ordine di pagina."""
+    flt = kb_filter(software, version)
+    flt.must.append(models.FieldCondition(key="path", match=models.MatchValue(value=r["path"])))
+    points, _ = client.scroll(cfg["qdrant"]["collection"], scroll_filter=flt, limit=1000, with_payload=True)
+    parent, seen, out = r["headings"], set(), []
+    for pl in sorted((p.payload for p in points), key=lambda pl: pl["position"]):
+        h = pl["headings"]
+        if len(h) > len(parent) and h[: len(parent)] == parent and pl["section_id"] not in seen:
+            seen.add(pl["section_id"])
+            out.append(pl)
+    return out
+
+
 def build_context(results: list[dict], client: QdrantClient, cfg: dict, software: str, version: str) -> list[dict]:
     a = cfg["answer"]
     name = load_source(software).get("display_name", software)
-    sections, total = [], 0
+    sections, total, used = [], 0, set()
     for r in results[: a["sections"]]:
+        if r["section_id"] in used:
+            continue          # già dentro una sezione precedente, come sottosezione
+        used.add(r["section_id"])
         text = fetch_section(client, cfg, software, version, r["section_id"])
+        subs = []
+        if a.get("subsections"):
+            for pl in subsections(client, cfg, software, version, r):
+                if pl["section_id"] in used:
+                    continue
+                used.add(pl["section_id"])
+                subs.append(" > ".join(pl["headings"][len(r["headings"]):]))
+                text += "\n\n" + "#" * len(pl["headings"]) + " " + pl["headings"][-1] + "\n\n" + \
+                        fetch_section(client, cfg, software, version, pl["section_id"])
         truncated = False
         if len(text) > a["max_chars_section"]:
             text, truncated = text[: a["max_chars_section"]] + "\n[sezione tagliata]", True
@@ -66,7 +92,7 @@ def build_context(results: list[dict], client: QdrantClient, cfg: dict, software
         sections.append({
             "n": len(sections) + 1, "software": name, "version": version, "page": r["title"],
             "section": " > ".join(r["headings"][1:]) or r["title"], "url": r["section_url"],
-            "section_id": r["section_id"],
+            "section_id": r["section_id"], "subsections": subs,
             "chars": len(text), "truncated": truncated, "rerank_score": r["rerank_score"], "text": text,
         })
     return sections
@@ -210,7 +236,7 @@ def ask_stream(query: str, software: str, version: str):
     sections = build_context(s_log["results"], client, cfg, software, version)
     prompt = make_prompt(query, sections)
     t2 = time.perf_counter()
-    yield {"type": "sources", "sections": [{k: s[k] for k in ("n", "software", "version", "page", "section", "url",
+    yield {"type": "sources", "sections": [{k: s[k] for k in ("n", "software", "version", "page", "section", "url", "subsections",
                                                               "truncated")} for s in sections]}
     parts, usage, meta, thinking = [], {}, {}, False
     for chunk in stream_openrouter(prompt, cfg, key):

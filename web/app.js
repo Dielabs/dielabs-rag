@@ -129,7 +129,7 @@ function disegnaFonti(giro, sezioni) {
     <li class="fonte" data-n="${s.n}">
       <span class="num">${s.n}</span>
       <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.page)}</a>
-      <span class="sezione">${esc(s.section)}${s.truncated ? ", tagliata" : ""}, ${esc(host(s.url))}</span>
+      <span class="sezione">${esc(s.section)}${s.subsections && s.subsections.length ? `, con ${s.subsections.length} ${s.subsections.length === 1 ? "sottosezione" : "sottosezioni"}` : ""}${s.truncated ? ", tagliata" : ""}, ${esc(host(s.url))}</span>
     </li>`).join("")}</ol>`;
   return box;
 }

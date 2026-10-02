@@ -30,11 +30,12 @@ answer:                    # risposta con citazioni (Blocco 6)
   sections: 5              # sezioni intere passate al modello
   max_chars_section: 12000 # tetto per singola sezione, oltre si taglia in coda
   max_chars_total: 30000   # tetto totale del contesto (circa 7.500 token)
+  subsections: true        # a ogni sezione trovata si aggiungono le sue sottosezioni (Blocco 12, ADR-0007)
 
 openrouter:                # GLM 5.3 Flash, solo provider FP8 (ADR-0003); chiave in .env
   url: https://openrouter.ai/api/v1
   model: z-ai/glm-5.3-flash
   quantizations: [fp8]
-  max_tokens: 3000
+  max_tokens: 6000
   temperature: 0.2
   timeout: 180
