@@ -180,6 +180,29 @@ button {
 button:hover:not(:disabled) { background: var(--accento); border-color: var(--accento); }
 button:disabled { opacity: .45; cursor: default; }
 
+/* il parere del consulente: separato e dichiarato, oltre la documentazione (ADR-0011) */
+.consulente-tasto {
+  height: 2.3rem; margin-top: 1rem; padding: 0 .9rem; font-size: .88rem;
+  color: var(--accento); background: transparent; border: 1px solid var(--riga); border-radius: 4px;
+}
+.consulente-tasto:hover:not(:disabled) { color: var(--accento); background: var(--velo); border-color: var(--accento); }
+.consulente {
+  margin-top: 1.5rem; padding: 1rem 1.2rem 1.1rem; border-radius: 6px;
+  background: rgba(29, 93, 102, .045); border: 1px solid rgba(29, 93, 102, .14);
+  animation: entra .5s cubic-bezier(.2,.7,.2,1) both;
+}
+.consulente h2 { font-family: var(--serif); font-size: 1.08rem; font-weight: 700; margin: 0 0 .3rem; }
+.consulente .avviso { color: var(--tenue); font-size: .84rem; line-height: 1.45; margin: 0 0 .9rem; }
+.consulente .risposta { font-size: 1.04rem; }
+.consulente .controllo { font-size: .84rem; margin: .4rem 0 0; }
+.risposta code.flag-ko { text-decoration: underline wavy #8a2b2b; text-underline-offset: .2em; }
+.flag-nota {
+  font-family: var(--sans); font-size: .68rem; line-height: 1; white-space: nowrap;
+  margin-left: .3em; padding: .12em .4em; border-radius: 3px; vertical-align: .12em;
+}
+.flag-nota.ok { color: var(--accento); background: var(--velo); }
+.flag-nota.ko { color: #8a2b2b; background: rgba(138, 43, 43, .08); }
+
 @keyframes entra { from { opacity: 0; transform: translateY(12px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
 @keyframes esce  { to { opacity: 0; transform: translateY(-10px); filter: blur(3px); } }
 @keyframes pulsa { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }

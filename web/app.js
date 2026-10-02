@@ -184,6 +184,7 @@ async function chiedi(q) {
           const costo = ev.cost_usd != null ? `${ev.cost_usd.toFixed(4).replace(".", ",")} $` : "costo n/d";
           giro.insertAdjacentHTML("beforeend",
             `<p class="meta">${esc(ev.provider || "provider n/d")}, ${esc(ev.quantization || "precisione n/d")}, ${costo}, ${String(ev.seconds).replace(".", ",")} s</p>`);
+          if (ev.log && !ev.empty) bottoneConsulente(giro, ev.log, version);
         } else if (ev.type === "error") {
           throw new Error(ev.message);
         }
@@ -335,3 +336,87 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !pannell
 
 // se un aggiornamento è già in corso quando si apre la pagina, lo si segue
 fetch("/api/update/status").then((r) => r.json()).then((s) => { if (s.running) { pannello.hidden = false; seguiAggiornamento(); } }).catch(() => {});
+
+
+// ---------- il parere del consulente (ADR-0011): un secondo passaggio, oltre la documentazione ----------
+async function leggiEventi(r, onEvent) {
+  const lettore = r.body.getReader(), dec = new TextDecoder();
+  let resto = "";
+  for (;;) {
+    const { value, done } = await lettore.read();
+    if (done) break;
+    resto += dec.decode(value, { stream: true });
+    let a;
+    while ((a = resto.indexOf("\n")) >= 0) {
+      const riga = resto.slice(0, a).trim(); resto = resto.slice(a + 1);
+      if (riga) onEvent(JSON.parse(riga));
+    }
+  }
+}
+
+function bottoneConsulente(giro, logName, versione) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "consulente-tasto";
+  b.textContent = "Aggiungi il parere del consulente";
+  b.title = "Il modello aggiunge consigli dalla sua esperienza, oltre la documentazione";
+  b.addEventListener("click", () => consulta(giro, logName, versione, b));
+  giro.appendChild(b);
+}
+
+function segnaParametri(box, flags, versione) {
+  const visti = new Set();
+  box.querySelectorAll(".risposta code").forEach((c) => {
+    if (c.closest("pre")) return;
+    const m = c.textContent.trim().match(/^--[a-z][a-z0-9-]*[a-z0-9]/);
+    if (!m || !(m[0] in flags)) return;
+    const ok = flags[m[0]];
+    c.classList.add(ok ? "flag-ok" : "flag-ko");
+    if (visti.has(m[0])) return;
+    visti.add(m[0]);
+    c.insertAdjacentHTML("afterend", `<span class="flag-nota ${ok ? "ok" : "ko"}">${ok ? "nella doc" : "non nella doc"} ${esc(versione)}</span>`);
+  });
+}
+
+async function consulta(giro, logName, versione, tasto) {
+  tasto.remove();
+  const box = document.createElement("section");
+  box.className = "consulente";
+  box.innerHTML = `<h2>Il parere del consulente</h2>
+    <p class="avviso">Oltre la documentazione: viene dall'esperienza generale del modello e non è verificato sulla versione ${esc(versione)}. I parametri che nomina li controllo nella documentazione.</p>
+    <p class="stato">Il consulente sta leggendo domanda e risposta</p>
+    <div class="risposta"></div>`;
+  giro.appendChild(box);
+  const stato = box.querySelector(".stato"), testoBox = box.querySelector(".risposta");
+  let testo = "", inAttesa = false;
+  const ridisegna = () => { inAttesa = false; testoBox.innerHTML = markdown(testo); };
+  try {
+    const r = await fetch("/api/consult", { method: "POST", headers: { "Content-Type": "application/json" },
+                                           body: JSON.stringify({ log: logName }) });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Il server ha risposto ${r.status}.`); }
+    await leggiEventi(r, (ev) => {
+      if (ev.type === "thinking") stato.textContent = "Il consulente sta ragionando";
+      else if (ev.type === "token") {
+        if (stato.isConnected) { stato.remove(); testoBox.classList.add("scrive"); }
+        testo += ev.text;
+        if (!inAttesa) { inAttesa = true; requestAnimationFrame(ridisegna); }
+      } else if (ev.type === "done") {
+        if (stato.isConnected) stato.remove();
+        testoBox.classList.remove("scrive");
+        if (ev.empty) testo = "_Il consulente non ha restituito testo. Riprova._";
+        ridisegna();
+        segnaParametri(box, ev.flags, versione);
+        const nomi = Object.keys(ev.flags), mancanti = nomi.filter((f) => !ev.flags[f]);
+        const controllo = nomi.length
+          ? `${nomi.length - mancanti.length} di ${nomi.length} parametri trovati nella documentazione ${esc(versione)}${mancanti.length ? `; da verificare: ${mancanti.map((f) => `<code>${esc(f)}</code>`).join(", ")}` : ""}.`
+          : "";
+        const costo = ev.cost_usd != null ? `${ev.cost_usd.toFixed(4).replace(".", ",")} $` : "costo n/d";
+        box.insertAdjacentHTML("beforeend",
+          `${controllo ? `<p class="controllo">${controllo}</p>` : ""}<p class="meta">${esc(ev.provider || "provider n/d")}, ${esc(ev.quantization || "precisione n/d")}, ${costo}, ${String(ev.seconds).replace(".", ",")} s</p>`);
+      } else if (ev.type === "error") throw new Error(ev.message);
+    });
+  } catch (err) {
+    if (stato.isConnected) stato.remove();
+    testoBox.classList.remove("scrive");
+    box.insertAdjacentHTML("beforeend", `<p class="errore">Parere interrotto: ${esc(err.message)}.</p>`);
+  }
+}

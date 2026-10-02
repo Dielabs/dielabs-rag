@@ -80,11 +80,12 @@ def make_prompt(query: str, sections: list[dict]) -> str:
     return "Documentation sections:\n\n" + "\n\n-----\n\n".join(blocks) + f"\n\nQuestion: {query}"
 
 
-def openrouter_request(prompt: str, cfg: dict, key: str, stream: bool = False) -> urllib.request.Request:
+def openrouter_request(prompt: str, cfg: dict, key: str, stream: bool = False,
+                       system: str = SYSTEM) -> urllib.request.Request:
     o = cfg["openrouter"]
     body = {
         "model": o["model"],
-        "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         "max_tokens": o["max_tokens"], "temperature": o["temperature"],
         "provider": {"quantizations": o["quantizations"]},
         "usage": {"include": True},
@@ -101,9 +102,9 @@ def call_openrouter(prompt: str, cfg: dict, key: str) -> dict:
         return json.load(r)
 
 
-def stream_openrouter(prompt: str, cfg: dict, key: str):
+def stream_openrouter(prompt: str, cfg: dict, key: str, system: str = SYSTEM):
     """Pezzi della risposta in streaming (SSE di OpenRouter), uno per riga "data:"."""
-    req = openrouter_request(prompt, cfg, key, stream=True)
+    req = openrouter_request(prompt, cfg, key, stream=True, system=system)
     with urllib.request.urlopen(req, timeout=cfg["openrouter"].get("timeout", 120)) as r:
         for raw in r:
             line = raw.decode("utf-8", "replace").strip()
@@ -251,9 +252,87 @@ def ask_stream(query: str, software: str, version: str):
     stamp = log["at"].replace(":", "").replace("-", "").replace("+0000", "Z")
     (LOG_DIR / f"{stamp}_{software}_{version}.json").write_text(json.dumps(log, indent=2, ensure_ascii=False),
                                                                encoding="utf-8")
-    yield {"type": "done", "provider": log["provider"], "quantization": log["quantization"],
+    yield {"type": "done", "log": f"{stamp}_{software}_{version}.json",
+           "provider": log["provider"], "quantization": log["quantization"],
            "cost_usd": log["cost_usd"], "seconds": round(t3 - t0, 1), "finish_reason": log["finish_reason"],
            "cited": log["citations"]["cited"], "empty": not answer.strip()}
+
+
+CONSULT_SYSTEM = """You are a senior inference engineer acting as a consultant to the user.
+The user asked a question about one software, one version. Another assistant already answered using ONLY the
+official documentation sections shown to you. Your job is to add what that answer does not cover, from your own
+knowledge and experience: practical advice for the user's likely situation, trade-offs, how to measure the effect
+(e.g. which metric to watch, a simple benchmark), common pitfalls, related settings worth knowing.
+Rules:
+- The documentation wins. If something you would say contradicts the sections, say so and explain.
+- Your knowledge may be older than this version: never present a parameter name, default or number as certain.
+  Write CLI flags in backticks with their leading dashes, e.g. `--max-num-batched-tokens`.
+- Do not repeat the documentation answer. Do not cite section numbers. Be concise.
+- Answer in the language of the user's question."""
+
+CONSULT_LOG_DIR = ROOT / "data" / "logs" / "consult"
+ANSWER_LOG_NAME = re.compile(r"^\d{8}T\d{6}Z_[a-z0-9_-]+_\d+\.\d+\.\d+\.json$")
+FLAG = re.compile(r"(?<![\w-])--[a-z][a-z0-9-]*[a-z0-9]")
+
+
+def check_flags(text: str, software: str, version: str) -> dict:
+    """Per ogni parametro --nome citato nel testo: compare nella documentazione di quella versione?"""
+    flags = sorted(set(FLAG.findall(text)))
+    if not flags:
+        return {}
+    corpus = (ROOT / "data" / "corpus" / software / version / "pages.jsonl").read_text(encoding="utf-8")
+    return {f: bool(re.search(re.escape(f) + r"(?![\w-])", corpus)) for f in flags}
+
+
+def consult_stream(answer_log: str):
+    """Il parere del consulente su una risposta già data: eventi thinking, token, done (ADR-0011)."""
+    if not ANSWER_LOG_NAME.match(answer_log) or not (LOG_DIR / answer_log).exists():
+        raise ValueError("risposta non trovata")
+    a = json.loads((LOG_DIR / answer_log).read_text(encoding="utf-8"))
+    cfg = load_config()
+    key = read_env().get("OPENROUTER_API_KEY")
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY mancante in .env")
+    prompt = (f"Software and version: {a['software']} {a['version']}\n\n{a['prompt']}\n\n-----\n\n"
+              f"Answer already given from the documentation:\n{a['answer']}\n\n-----\n\n"
+              "What can you add from your own knowledge that would help this user?")
+    t0 = time.perf_counter()
+    parts, usage, meta, thinking = [], {}, {}, False
+    for chunk in stream_openrouter(prompt, cfg, key, system=CONSULT_SYSTEM):
+        for k in ("id", "model", "provider"):
+            if chunk.get(k) and k not in meta:
+                meta[k] = chunk[k]
+        if chunk.get("usage"):
+            usage = chunk["usage"]
+        for c in chunk.get("choices", []):
+            delta = c.get("delta") or {}
+            if delta.get("reasoning") and not thinking and not parts:
+                thinking = True
+                yield {"type": "thinking"}
+            if delta.get("content"):
+                parts.append(delta["content"])
+                yield {"type": "token", "text": delta["content"]}
+            if c.get("finish_reason"):
+                meta["finish_reason"] = c["finish_reason"]
+    seconds = round(time.perf_counter() - t0, 1)
+    text = "".join(parts)
+    flags = check_flags(text, a["software"], a["version"])
+    log = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "answer_log": answer_log,
+           "query": a["query"], "software": a["software"], "version": a["version"],
+           "model": meta.get("model"), "provider": meta.get("provider"),
+           "quantization": provider_quantization(meta.get("provider"), cfg, key),
+           "finish_reason": meta.get("finish_reason"),
+           "tokens_prompt": usage.get("prompt_tokens"), "tokens_completion": usage.get("completion_tokens"),
+           "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+           "cost_usd": usage.get("cost"), "seconds": seconds, "flags": flags, "text": text,
+           "generation_id": meta.get("id")}
+    CONSULT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = log["at"].replace(":", "").replace("-", "").replace("+0000", "Z")
+    (CONSULT_LOG_DIR / f"{stamp}_{a['software']}_{a['version']}.json").write_text(
+        json.dumps(log, indent=2, ensure_ascii=False), encoding="utf-8")
+    yield {"type": "done", "provider": log["provider"], "quantization": log["quantization"],
+           "cost_usd": log["cost_usd"], "seconds": seconds, "flags": flags, "version": a["version"],
+           "empty": not text.strip()}
 
 
 def show(log: dict, sections: list[dict]) -> None:

@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import update as update_mod
-from answer import ask_stream
+from answer import ask_stream, consult_stream
 from sources import ROOT, SOURCES_DIR, load as load_source
 
 WEB = ROOT / "web"
@@ -138,6 +138,15 @@ class Handler(BaseHTTPRequestHandler):
             if not start_update(sw):
                 return self._json(409, {"error": "C'è già un aggiornamento in corso."})
             return self._json(202, {"started": True})
+        if self.path == "/api/consult":
+            try:
+                req = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 2000)) or b"{}")
+            except (ValueError, json.JSONDecodeError):
+                return self._json(400, {"error": "Richiesta non valida."})
+            log_name = req.get("log")
+            if not isinstance(log_name, str):
+                return self._json(400, {"error": "Risposta non indicata."})
+            return self._stream(consult_stream(log_name))
         if self.path != "/api/ask":
             return self._send(404, b"not found", "text/plain")
         try:
@@ -153,6 +162,10 @@ class Handler(BaseHTTPRequestHandler):
         if sw not in valid or ver not in valid[sw]:
             return self._json(400, {"error": "Questa documentazione non è caricata."})
 
+        return self._stream(ask_stream(q, sw, ver))
+
+    def _stream(self, events) -> None:
+        """Manda gli eventi di un generatore come NDJSON, uno per riga, man mano che arrivano."""
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -164,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
 
         try:
-            for event in ask_stream(q, sw, ver):
+            for event in events:
                 emit(event)
         except (BrokenPipeError, ConnectionResetError):
             pass          # la pagina è stata chiusa durante la risposta
