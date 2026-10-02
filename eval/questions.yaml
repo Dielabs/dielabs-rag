@@ -85,3 +85,79 @@
   version: "0.8.0"
   question: "How do I check if the server meets a latency target like TTFT under 500 ms?"
   expected: [guides/service_level_objectives/]
+
+# ---- Domande difficili (aggiunte il 2026-10-02 su richiesta di Diego) ----
+# group: vague = formulazione da utente, senza le parole della documentazione
+# group: italian = domanda in italiano su documentazione in inglese
+# group: no_answer = la documentazione non ha la risposta; expected vuoto, la risposta si giudica a mano
+#   (giusto: dice che la documentazione non lo copre, eventualmente cosa c'è di vicino)
+
+- id: vague-01
+  group: vague
+  software: vllm
+  version: "0.30.0"
+  question: "My server gets really slow when lots of people use it at the same time. What should I look at?"
+  expected: [configuration/optimization/]
+
+- id: vague-02
+  group: vague
+  software: vllm
+  version: "0.30.0"
+  question: "Long prompts take forever before the first word comes out. How can I speed that up?"
+  expected: [configuration/optimization/, features/automatic_prefix_caching/, features/disagg_prefill/]
+
+- id: vague-03
+  group: vague
+  software: vllm
+  version: "0.30.0"
+  question: "The model is too big even for my 8-GPU box, what now?"
+  expected: [serving/parallelism_scaling/]
+
+- id: vague-04
+  group: vague
+  software: guidellm
+  version: "0.8.0"
+  question: "How do I find out how much traffic my server can take before it falls over?"
+  expected: [getting-started/benchmark/, guides/over_saturation_stopping/]
+
+- id: italian-01
+  group: italian
+  software: vllm
+  version: "0.30.0"
+  question: "Come riduco la lunghezza massima del contesto per far stare il modello in memoria?"
+  expected: [configuration/conserving_memory/, cli/serve/, configuration/engine_args/]
+
+- id: italian-02
+  group: italian
+  software: vllm
+  version: "0.30.0"
+  question: "Come proteggo il server con una password o una chiave?"
+  expected: [usage/security/, serving/online_serving/openai_compatible_server/]
+
+- id: italian-03
+  group: italian
+  software: guidellm
+  version: "0.8.0"
+  question: "Dove trovo i risultati del benchmark e in che formati li posso salvare?"
+  expected: [guides/outputs/]
+
+- id: no-answer-01
+  group: no_answer
+  software: vllm
+  version: "0.30.0"
+  question: "How do I connect vLLM authentication to our company LDAP directory?"
+  expected: []
+
+- id: no-answer-02
+  group: no_answer
+  software: vllm
+  version: "0.30.0"
+  question: "How many concurrent users can Llama 3 70B handle on a single H100 with vLLM?"
+  expected: []
+
+- id: no-answer-03
+  group: no_answer
+  software: guidellm
+  version: "0.8.0"
+  question: "Can GuideLLM benchmark a PostgreSQL database?"
+  expected: []
