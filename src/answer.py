@@ -80,7 +80,7 @@ def make_prompt(query: str, sections: list[dict]) -> str:
     return "Documentation sections:\n\n" + "\n\n-----\n\n".join(blocks) + f"\n\nQuestion: {query}"
 
 
-def call_openrouter(prompt: str, cfg: dict, key: str) -> dict:
+def openrouter_request(prompt: str, cfg: dict, key: str, stream: bool = False) -> urllib.request.Request:
     o = cfg["openrouter"]
     body = {
         "model": o["model"],
@@ -89,11 +89,33 @@ def call_openrouter(prompt: str, cfg: dict, key: str) -> dict:
         "provider": {"quantizations": o["quantizations"]},
         "usage": {"include": True},
     }
-    req = urllib.request.Request(o["url"].rstrip("/") + "/chat/completions", data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}",
-                                          "HTTP-Referer": "https://dielabs.eu", "X-Title": "Dielabs RAG"})
-    with urllib.request.urlopen(req, timeout=o.get("timeout", 120)) as r:
+    if stream:
+        body["stream"] = True
+    return urllib.request.Request(o["url"].rstrip("/") + "/chat/completions", data=json.dumps(body).encode(),
+                                  headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}",
+                                           "HTTP-Referer": "https://dielabs.eu", "X-Title": "Dielabs RAG"})
+
+
+def call_openrouter(prompt: str, cfg: dict, key: str) -> dict:
+    with urllib.request.urlopen(openrouter_request(prompt, cfg, key), timeout=cfg["openrouter"].get("timeout", 120)) as r:
         return json.load(r)
+
+
+def stream_openrouter(prompt: str, cfg: dict, key: str):
+    """Pezzi della risposta in streaming (SSE di OpenRouter), uno per riga "data:"."""
+    req = openrouter_request(prompt, cfg, key, stream=True)
+    with urllib.request.urlopen(req, timeout=cfg["openrouter"].get("timeout", 120)) as r:
+        for raw in r:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"):
+                continue          # righe vuote e commenti di attesa (": OPENROUTER PROCESSING")
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            chunk = json.loads(data)
+            if chunk.get("error"):
+                raise RuntimeError(chunk["error"].get("message", "errore OpenRouter"))
+            yield chunk
 
 
 def generation_details(gen_id: str, cfg: dict, key: str) -> dict:
@@ -172,6 +194,66 @@ def ask(query: str, software: str, version: str) -> dict:
     (LOG_DIR / f"{stamp}_{software}_{version}.json").write_text(json.dumps(log, indent=2, ensure_ascii=False),
                                                                encoding="utf-8")
     return log, sections
+
+
+def ask_stream(query: str, software: str, version: str):
+    """Come ask(), ma a eventi per la web GUI: sources, thinking, token, done. Scrive lo stesso log."""
+    cfg = load_config()
+    key = read_env().get("OPENROUTER_API_KEY")
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY mancante in .env")
+    t0 = time.perf_counter()
+    s_log = search(query, software, version)
+    t1 = time.perf_counter()
+    client = QdrantClient(url=cfg["qdrant"]["url"], timeout=cfg["qdrant"]["timeout"])
+    sections = build_context(s_log["results"], client, cfg, software, version)
+    prompt = make_prompt(query, sections)
+    t2 = time.perf_counter()
+    yield {"type": "sources", "sections": [{k: s[k] for k in ("n", "software", "version", "page", "section", "url",
+                                                              "truncated")} for s in sections]}
+    parts, usage, meta, thinking = [], {}, {}, False
+    for chunk in stream_openrouter(prompt, cfg, key):
+        for k in ("id", "model", "provider"):
+            if chunk.get(k) and k not in meta:
+                meta[k] = chunk[k]
+        if chunk.get("usage"):
+            usage = chunk["usage"]
+        for c in chunk.get("choices", []):
+            delta = c.get("delta") or {}
+            if delta.get("reasoning") and not thinking and not parts:
+                thinking = True
+                yield {"type": "thinking"}
+            if delta.get("content"):
+                parts.append(delta["content"])
+                yield {"type": "token", "text": delta["content"]}
+            if c.get("finish_reason"):
+                meta["finish_reason"] = c["finish_reason"]
+    t3 = time.perf_counter()
+    answer = "".join(parts)
+    log = {
+        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "query": query, "software": software, "version": version, "stream": True,
+        "search_log": s_log["at"],
+        "sections": [{k: v for k, v in s.items() if k != "text"} for s in sections],
+        "context_chars": sum(s["chars"] for s in sections),
+        "model": meta.get("model"), "provider": meta.get("provider"),
+        "quantization": provider_quantization(meta.get("provider"), cfg, key),
+        "finish_reason": meta.get("finish_reason"),
+        "tokens_prompt": usage.get("prompt_tokens"), "tokens_completion": usage.get("completion_tokens"),
+        "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+        "cost_usd": usage.get("cost"),
+        "seconds_search": round(t1 - t0, 3), "seconds_context": round(t2 - t1, 3),
+        "seconds_generation": round(t3 - t2, 3),
+        "citations": check_citations(answer, len(sections)),
+        "answer": answer, "prompt": prompt, "generation_id": meta.get("id"),
+    }
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = log["at"].replace(":", "").replace("-", "").replace("+0000", "Z")
+    (LOG_DIR / f"{stamp}_{software}_{version}.json").write_text(json.dumps(log, indent=2, ensure_ascii=False),
+                                                               encoding="utf-8")
+    yield {"type": "done", "provider": log["provider"], "quantization": log["quantization"],
+           "cost_usd": log["cost_usd"], "seconds": round(t3 - t0, 1), "finish_reason": log["finish_reason"],
+           "cited": log["citations"]["cited"], "empty": not answer.strip()}
 
 
 def show(log: dict, sections: list[dict]) -> None:

@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus qdrant chunks load report search ask eval eval-answer
+.PHONY: venv versions build extract corpus qdrant chunks load report search ask eval eval-answer web
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -48,3 +48,6 @@ eval:              ## valutazione della ricerca con eval/questions.yaml (gratis,
 
 eval-answer:       ## valutazione di ricerca e risposta (chiama OpenRouter, costa circa 0,01 $)
 	$(PY) src/evaluate.py --answer
+
+web:               ## web GUI su http://dollaro:8095 (ADR-0009)
+	$(PY) src/web.py --port 8095

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dielabs RAG</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231d5d66'/><text x='16' y='22' font-family='Georgia' font-size='18' text-anchor='middle' fill='%23fbfaf7'>D</text></svg>">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="testata">
+  <a class="marchio" href="/">Dielabs RAG</a>
+  <div class="scelta" aria-label="Documentazione da interrogare">
+    <span class="scelta-testo">Documentazione di</span>
+    <label class="sr" for="software">Software</label>
+    <select id="software"></select>
+    <label class="sr" for="versione">Versione</label>
+    <select id="versione"></select>
+  </div>
+</header>
+
+<main id="scorrimento" tabindex="-1">
+  <div id="conversazione" class="conversazione" aria-live="polite">
+    <section id="vuoto" class="vuoto">
+      <p class="invito">Chiedi alla documentazione di <span id="kb-invito">…</span>.</p>
+      <p class="aiuto">Ogni risposta cita le pagine da cui viene. Invio per chiedere, Maiusc+Invio per andare a capo.</p>
+    </section>
+  </div>
+</main>
+
+<footer class="compositore">
+  <form id="modulo" autocomplete="off">
+    <label class="sr" for="domanda">Domanda</label>
+    <textarea id="domanda" rows="1" placeholder="Scrivi una domanda sulla documentazione" required></textarea>
+    <button id="invia" type="submit">Chiedi</button>
+  </form>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
