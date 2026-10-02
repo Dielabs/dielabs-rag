@@ -36,6 +36,7 @@ openrouter:                # GLM 5.3 Flash, solo provider FP8 (ADR-0003); chiave
   url: https://openrouter.ai/api/v1
   model: z-ai/glm-5.3-flash
   consult_model: z-ai/glm-5.3        # modello del consulente (ADR-0011): quello normale, non Flash; stesso filtro FP8
+  consult_reasoning_effort: medium   # quanto ragiona il consulente (low, medium, high); solo per lui, la risposta no
   quantizations: [fp8]
   max_tokens: 6000
   temperature: 0.2

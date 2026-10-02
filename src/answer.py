@@ -107,7 +107,8 @@ def make_prompt(query: str, sections: list[dict]) -> str:
 
 
 def openrouter_request(prompt: str, cfg: dict, key: str, stream: bool = False,
-                       system: str = SYSTEM, model: str | None = None) -> urllib.request.Request:
+                       system: str = SYSTEM, model: str | None = None,
+                       reasoning_effort: str | None = None) -> urllib.request.Request:
     o = cfg["openrouter"]
     body = {
         "model": model or o["model"],
@@ -118,6 +119,8 @@ def openrouter_request(prompt: str, cfg: dict, key: str, stream: bool = False,
     }
     if stream:
         body["stream"] = True
+    if reasoning_effort:
+        body["reasoning"] = {"effort": reasoning_effort}    # parametro unificato di OpenRouter
     return urllib.request.Request(o["url"].rstrip("/") + "/chat/completions", data=json.dumps(body).encode(),
                                   headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}",
                                            "HTTP-Referer": "https://dielabs.eu", "X-Title": "Dielabs RAG"})
@@ -128,9 +131,11 @@ def call_openrouter(prompt: str, cfg: dict, key: str) -> dict:
         return json.load(r)
 
 
-def stream_openrouter(prompt: str, cfg: dict, key: str, system: str = SYSTEM, model: str | None = None):
+def stream_openrouter(prompt: str, cfg: dict, key: str, system: str = SYSTEM, model: str | None = None,
+                      reasoning_effort: str | None = None):
     """Pezzi della risposta in streaming (SSE di OpenRouter), uno per riga "data:"."""
-    req = openrouter_request(prompt, cfg, key, stream=True, system=system, model=model)
+    req = openrouter_request(prompt, cfg, key, stream=True, system=system, model=model,
+                             reasoning_effort=reasoning_effort)
     with urllib.request.urlopen(req, timeout=cfg["openrouter"].get("timeout", 120)) as r:
         for raw in r:
             line = raw.decode("utf-8", "replace").strip()
@@ -323,9 +328,10 @@ def consult_stream(answer_log: str):
               f"Answer already given from the documentation:\n{a['answer']}\n\n-----\n\n"
               "What can you add from your own knowledge that would help this user?")
     model = cfg["openrouter"].get("consult_model") or cfg["openrouter"]["model"]
+    effort = cfg["openrouter"].get("consult_reasoning_effort")
     t0 = time.perf_counter()
     parts, usage, meta, thinking = [], {}, {}, False
-    for chunk in stream_openrouter(prompt, cfg, key, system=CONSULT_SYSTEM, model=model):
+    for chunk in stream_openrouter(prompt, cfg, key, system=CONSULT_SYSTEM, model=model, reasoning_effort=effort):
         for k in ("id", "model", "provider"):
             if chunk.get(k) and k not in meta:
                 meta[k] = chunk[k]
@@ -346,7 +352,7 @@ def consult_stream(answer_log: str):
     flags = check_flags(text, a["software"], a["version"])
     log = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "answer_log": answer_log,
            "query": a["query"], "software": a["software"], "version": a["version"],
-           "model": meta.get("model"), "provider": meta.get("provider"),
+           "model": meta.get("model"), "reasoning_effort": effort, "provider": meta.get("provider"),
            "quantization": provider_quantization(meta.get("provider"), cfg, key, model),
            "finish_reason": meta.get("finish_reason"),
            "tokens_prompt": usage.get("prompt_tokens"), "tokens_completion": usage.get("completion_tokens"),
