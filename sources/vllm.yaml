@@ -2,6 +2,7 @@
 name: vllm
 display_name: vLLM
 repo: https://github.com/vllm-project/vllm.git
+type: mkdocs          # tipo di sorgente: come si prende la documentazione (ADR-0010)
 
 versions:
   # ultime N minori stabili, ognuna alla .0; niente release candidate, patch ignorate

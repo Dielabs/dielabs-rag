@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus qdrant chunks load report search ask eval eval-answer web
+.PHONY: venv versions build extract corpus qdrant chunks load report search ask eval eval-answer web update update-plan
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -51,3 +51,9 @@ eval-answer:       ## valutazione di ricerca e risposta (chiama OpenRouter, cost
 
 web:               ## web GUI su http://dollaro:8095 (ADR-0009)
 	$(PY) src/web.py --port 8095
+
+update-plan:       ## cosa farebbe l'aggiornamento di un software (ADR-0010)
+	$(PY) src/update.py $(SOFTWARE) --plan
+
+update:            ## aggiorna le KB di un software: carica le versioni nuove, poi toglie le uscite (ADR-0010)
+	$(PY) src/update.py $(SOFTWARE)

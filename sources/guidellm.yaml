@@ -2,6 +2,7 @@
 name: guidellm
 display_name: GuideLLM
 repo: https://github.com/vllm-project/guidellm.git
+type: mkdocs          # tipo di sorgente: come si prende la documentazione (ADR-0010)
 
 versions:
   # ultime due release stabili (tag), non il ramo main (ADR-0001)

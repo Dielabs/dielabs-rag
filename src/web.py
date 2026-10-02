@@ -14,10 +14,13 @@ import argparse
 import json
 import re
 import sys
+import threading
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import update as update_mod
 from answer import ask_stream
 from sources import ROOT, SOURCES_DIR, load as load_source
 
@@ -46,6 +49,44 @@ def kbs() -> list[dict]:
     return out
 
 
+# stato dell'aggiornamento in corso o dell'ultimo, letto dalla pagina ogni pochi secondi
+UPDATE = {"running": False}
+UPDATE_LOCK = threading.Lock()
+
+
+def start_update(software: str) -> bool:
+    with UPDATE_LOCK:
+        if UPDATE.get("running"):
+            return False
+        UPDATE.clear()
+        UPDATE.update({"running": True, "software": software, "started": time.time(), "steps": [],
+                       "plan": None, "result": None, "error": None})
+
+    def on_event(ev: dict) -> None:
+        with UPDATE_LOCK:
+            if ev["type"] == "plan":
+                UPDATE["plan"] = {k: ev[k] for k in ("display_name", "add", "remove")}
+            elif ev["type"] == "step":
+                UPDATE["steps"].append({"text": ev["text"], "at": time.time()})
+            elif ev["type"] == "done":
+                UPDATE["result"] = ev
+            elif ev["type"] == "error":
+                UPDATE["error"] = ev["message"]
+
+    def work() -> None:
+        try:
+            update_mod.run(software, on_event=on_event)
+        except BaseException:
+            traceback.print_exc()
+        finally:
+            with UPDATE_LOCK:
+                UPDATE["running"] = False
+                UPDATE["ended"] = time.time()
+
+    threading.Thread(target=work, daemon=True).start()
+    return True
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "DielabsRAG"
 
@@ -72,9 +113,31 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, (WEB / name).read_bytes(), STATIC[name])
         if path == "/api/kbs":
             return self._json(200, kbs())
+        if path == "/api/update/plan":
+            sw = self.path.partition("software=")[2].split("&")[0]
+            if not (SOURCES_DIR / f"{sw}.yaml").exists():
+                return self._json(400, {"error": "Software sconosciuto."})
+            try:
+                return self._json(200, update_mod.plan(sw))
+            except BaseException as e:
+                return self._json(500, {"error": f"Non riesco a leggere le versioni: {e}"})
+        if path == "/api/update/status":
+            with UPDATE_LOCK:
+                return self._json(200, {**UPDATE, "now": time.time()})
         self._send(404, b"not found", "text/plain")
 
     def do_POST(self):
+        if self.path == "/api/update":
+            try:
+                req = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 2000)) or b"{}")
+            except (ValueError, json.JSONDecodeError):
+                return self._json(400, {"error": "Richiesta non valida."})
+            sw = req.get("software")
+            if not isinstance(sw, str) or not (SOURCES_DIR / f"{sw}.yaml").exists():
+                return self._json(400, {"error": "Software sconosciuto."})
+            if not start_update(sw):
+                return self._json(409, {"error": "C'è già un aggiornamento in corso."})
+            return self._json(202, {"started": True})
         if self.path != "/api/ask":
             return self._send(404, b"not found", "text/plain")
         try:

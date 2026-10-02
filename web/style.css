@@ -46,6 +46,36 @@ body {
 }
 .scelta select:hover, .scelta select:focus { border-color: var(--accento); outline: none; }
 
+/* tasto e pannello di aggiornamento */
+.testata { position: relative; }
+.testata .aggiorna {
+  height: auto; margin-left: .4rem; padding: .15rem .65rem; font-size: .85rem; line-height: 1.4;
+  color: var(--inchio); background: transparent; border: 1px solid var(--riga); border-radius: 4px;
+}
+.testata .aggiorna:hover:not(:disabled) { color: var(--carta); background: var(--accento); border-color: var(--accento); }
+.pannello {
+  position: absolute; z-index: 5; top: calc(100% + .5rem); right: max(1.5rem, env(safe-area-inset-right));
+  width: min(25rem, calc(100vw - 2rem)); padding: 1rem 1.1rem 1.05rem;
+  background: var(--carta); border: 1px solid var(--riga); border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(28, 27, 25, .08);
+  font-size: .92rem; line-height: 1.5; animation: entra .35s ease-out both;
+}
+.pannello h2 { font-family: var(--serif); font-size: 1.1rem; font-weight: 700; margin: 0 0 .5rem; }
+.pannello p { margin: 0 0 .6rem; }
+.pannello .nota { color: var(--tenue); font-size: .84rem; }
+.pannello .versioni { font-variant-numeric: tabular-nums; }
+.pannello .entra { color: var(--accento); }
+.pannello ol { list-style: none; margin: .2rem 0 .7rem; padding: 0; }
+.pannello li { padding: .15rem 0 .15rem 1.2rem; position: relative; color: var(--tenue); }
+.pannello li::before { content: ""; position: absolute; left: .2rem; top: .7em; width: .4rem; height: .4rem; border-radius: 50%; background: var(--riga); }
+.pannello li.fatto::before { background: var(--accento); }
+.pannello li.corrente { color: var(--inchio); }
+.pannello li.corrente::before { background: var(--accento); animation: pulsa 1.2s ease-in-out infinite; }
+.pannello .azioni { display: flex; gap: .5rem; margin-top: .8rem; }
+.pannello .azioni button { height: 2.3rem; padding: 0 .9rem; font-size: .9rem; }
+.pannello .azioni .secondario { background: transparent; color: var(--inchio); border-color: var(--riga); }
+.pannello .azioni .secondario:hover { background: var(--codice); color: var(--inchio); border-color: var(--riga); }
+
 /* area che scorre: i bordi sfumano, così i messaggi vecchi escono dissolvendosi */
 #scorrimento {
   overflow-y: auto; outline: none; scroll-behavior: smooth;
@@ -156,7 +186,8 @@ button:disabled { opacity: .45; cursor: default; }
 
 @media (max-width: 40rem) {
   body { font-size: 16px; }
-  .scelta { margin-left: 0; width: 100%; }
+  .scelta { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .testata .aggiorna { margin-left: 0; }
   .conversazione { padding: 2.5rem 1rem 3rem; }
   .invito { font-size: 1.35rem; }
   .compositore { padding-left: 1rem; padding-right: 1rem; }

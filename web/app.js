@@ -227,3 +227,111 @@ modulo.addEventListener("submit", async (e) => {
 caricaKb().then(() => campo.focus()).catch(() => {
   conversazione.innerHTML = '<p class="errore">Non riesco a leggere l\'elenco della documentazione. Il server è acceso?</p>';
 });
+
+
+// ---------- aggiornamento della documentazione (ADR-0010) ----------
+const tastoAggiorna = $("aggiorna"), pannello = $("pannello");
+let sondaggio = null;
+
+function durata(s) {
+  s = Math.max(0, Math.round(s));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
+}
+function elencoVersioni(v) { return v.length ? v.join(", ") : "nessuna"; }
+function chiudiPannello() { pannello.hidden = true; pannello.innerHTML = ""; tastoAggiorna.focus(); }
+function mostra(html) { pannello.innerHTML = html; pannello.hidden = false; }
+
+async function controllaAggiornamento() {
+  const k = kbCorrente();
+  mostra(`<h2>Aggiorna ${esc(k.display_name)}</h2><p class="stato">Controllo le versioni su GitHub</p>`);
+  try {
+    const r = await fetch(`/api/update/plan?software=${encodeURIComponent(k.name)}`);
+    const p = await r.json();
+    if (!r.ok) throw new Error(p.error || `errore ${r.status}`);
+    if (!p.add.length && !p.remove.length) {
+      mostra(`<h2>${esc(p.display_name)} è aggiornato</h2>
+        <p class="versioni">Versioni caricate: ${esc(elencoVersioni(p.present))}.</p>
+        <div class="azioni"><button type="button" class="secondario" data-azione="chiudi">Chiudi</button></div>`);
+      return;
+    }
+    mostra(`<h2>Aggiorna ${esc(p.display_name)}</h2>
+      <p class="versioni">${p.add.length ? `<span class="entra">Entra ${esc(elencoVersioni(p.add))}.</span> ` : ""}${p.remove.length ? `Esce ${esc(elencoVersioni(p.remove))}.` : ""}</p>
+      <p class="nota">Prima carico le versioni nuove, poi tolgo le vecchie. Dura alcuni minuti per versione; intanto puoi continuare a fare domande.</p>
+      <div class="azioni"><button type="button" data-azione="avvia" data-software="${esc(p.software)}">Aggiorna ${esc(p.display_name)}</button>
+      <button type="button" class="secondario" data-azione="chiudi">Annulla</button></div>`);
+  } catch (e) {
+    mostra(`<h2>Aggiorna ${esc(k.display_name)}</h2><p class="errore">${esc(e.message)}</p>
+      <div class="azioni"><button type="button" class="secondario" data-azione="chiudi">Chiudi</button></div>`);
+  }
+}
+
+async function avviaAggiornamento(software) {
+  const r = await fetch("/api/update", { method: "POST", headers: { "Content-Type": "application/json" },
+                                         body: JSON.stringify({ software }) });
+  if (!r.ok && r.status !== 409) {
+    const e = await r.json().catch(() => ({}));
+    mostra(`<p class="errore">${esc(e.error || "Non riesco ad avviare l'aggiornamento.")}</p>
+      <div class="azioni"><button type="button" class="secondario" data-azione="chiudi">Chiudi</button></div>`);
+    return;
+  }
+  seguiAggiornamento();
+}
+
+function disegnaStato(s) {
+  const nome = (s.plan && s.plan.display_name) || s.software;
+  const passi = s.steps.map((p, i) => {
+    const corrente = s.running && i === s.steps.length - 1;
+    return `<li class="${corrente ? "corrente" : "fatto"}">${esc(p.text)}</li>`;
+  }).join("");
+  if (s.running) {
+    mostra(`<h2>Aggiorno ${esc(nome)}</h2>
+      ${s.plan ? `<p class="versioni"><span class="entra">Entra ${esc(elencoVersioni(s.plan.add))}.</span> Esce ${esc(elencoVersioni(s.plan.remove))}.</p>` : ""}
+      ${passi ? `<ol>${passi}</ol>` : `<p class="stato">Controllo le versioni su GitHub</p>`}
+      <p class="nota">In corso da ${durata(s.now - s.started)}. Puoi chiudere questo riquadro: l'aggiornamento continua.</p>
+      <div class="azioni"><button type="button" class="secondario" data-azione="chiudi">Chiudi</button></div>`);
+  } else if (s.error) {
+    mostra(`<h2>Aggiornamento di ${esc(nome)} interrotto</h2>
+      ${passi ? `<ol>${passi}</ol>` : ""}
+      <p class="errore">${esc(s.error)}</p>
+      <p class="nota">Il dettaglio è in data/logs/update/ su dollaro.</p>
+      <div class="azioni"><button type="button" class="secondario" data-azione="chiudi">Chiudi</button></div>`);
+  } else if (s.result) {
+    const r = s.result;
+    mostra(`<h2>${esc(nome)} aggiornato</h2>
+      <p class="versioni">${r.add.length ? `<span class="entra">Entrata ${esc(elencoVersioni(r.add))}.</span> ` : ""}${r.remove.length ? `Uscita ${esc(elencoVersioni(r.remove))}.` : ""}</p>
+      <p class="nota">Fatto in ${durata(r.seconds)}.</p>
+      <div class="azioni"><button type="button" class="secondario" data-azione="chiudi">Chiudi</button></div>`);
+  }
+}
+
+function seguiAggiornamento() {
+  clearInterval(sondaggio);
+  tastoAggiorna.textContent = "Aggiornamento in corso";   // resta cliccabile: riapre il riquadro
+  const giro = async () => {
+    let s;
+    try { s = await fetch("/api/update/status").then((r) => r.json()); } catch (e) { return; }
+    if (!pannello.hidden || !s.running) disegnaStato(s);
+    if (!s.running) {
+      clearInterval(sondaggio); sondaggio = null; tastoAggiorna.textContent = "Aggiorna";
+      const sw = selSoftware.value, ver = selVersione.value;
+      await caricaKb();                      // le versioni caricate sono cambiate
+      if (kbs.some((k) => k.name === sw)) { selSoftware.value = sw; aggiornaVersioni(ver); }
+    }
+  };
+  giro(); sondaggio = setInterval(giro, 2000);
+}
+
+tastoAggiorna.addEventListener("click", () => {
+  if (sondaggio) { pannello.hidden ? fetch("/api/update/status").then((r) => r.json()).then(disegnaStato) : chiudiPannello(); return; }
+  pannello.hidden ? controllaAggiornamento() : chiudiPannello();
+});
+pannello.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-azione]");
+  if (!b) return;
+  if (b.dataset.azione === "chiudi") chiudiPannello();
+  if (b.dataset.azione === "avvia") avviaAggiornamento(b.dataset.software);
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !pannello.hidden) chiudiPannello(); });
+
+// se un aggiornamento è già in corso quando si apre la pagina, lo si segue
+fetch("/api/update/status").then((r) => r.json()).then((s) => { if (s.running) { pannello.hidden = false; seguiAggiornamento(); } }).catch(() => {});
