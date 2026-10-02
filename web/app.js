@@ -411,7 +411,7 @@ async function consulta(giro, logName, versione, tasto) {
           : "";
         const costo = ev.cost_usd != null ? `${ev.cost_usd.toFixed(4).replace(".", ",")} $` : "costo n/d";
         box.insertAdjacentHTML("beforeend",
-          `${controllo ? `<p class="controllo">${controllo}</p>` : ""}<p class="meta">${esc(ev.provider || "provider n/d")}, ${esc(ev.quantization || "precisione n/d")}, ${costo}, ${String(ev.seconds).replace(".", ",")} s</p>`);
+          `${controllo ? `<p class="controllo">${controllo}</p>` : ""}<p class="meta">${esc(ev.model || "modello n/d")}, ${esc(ev.provider || "provider n/d")}, ${esc(ev.quantization || "precisione n/d")}, ${costo}, ${String(ev.seconds).replace(".", ",")} s</p>`);
       } else if (ev.type === "error") throw new Error(ev.message);
     });
   } catch (err) {

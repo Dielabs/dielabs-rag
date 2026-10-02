@@ -107,10 +107,10 @@ def make_prompt(query: str, sections: list[dict]) -> str:
 
 
 def openrouter_request(prompt: str, cfg: dict, key: str, stream: bool = False,
-                       system: str = SYSTEM) -> urllib.request.Request:
+                       system: str = SYSTEM, model: str | None = None) -> urllib.request.Request:
     o = cfg["openrouter"]
     body = {
-        "model": o["model"],
+        "model": model or o["model"],
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         "max_tokens": o["max_tokens"], "temperature": o["temperature"],
         "provider": {"quantizations": o["quantizations"]},
@@ -128,9 +128,9 @@ def call_openrouter(prompt: str, cfg: dict, key: str) -> dict:
         return json.load(r)
 
 
-def stream_openrouter(prompt: str, cfg: dict, key: str, system: str = SYSTEM):
+def stream_openrouter(prompt: str, cfg: dict, key: str, system: str = SYSTEM, model: str | None = None):
     """Pezzi della risposta in streaming (SSE di OpenRouter), uno per riga "data:"."""
-    req = openrouter_request(prompt, cfg, key, stream=True, system=system)
+    req = openrouter_request(prompt, cfg, key, stream=True, system=system, model=model)
     with urllib.request.urlopen(req, timeout=cfg["openrouter"].get("timeout", 120)) as r:
         for raw in r:
             line = raw.decode("utf-8", "replace").strip()
@@ -158,11 +158,11 @@ def generation_details(gen_id: str, cfg: dict, key: str) -> dict:
     return {}
 
 
-def provider_quantization(provider: str, cfg: dict, key: str) -> str | None:
+def provider_quantization(provider: str, cfg: dict, key: str, model: str | None = None) -> str | None:
     """Precisione dichiarata dal provider per il modello, dalla lista degli endpoint di OpenRouter
     (la risposta e /generation non la riportano)."""
     o = cfg["openrouter"]
-    req = urllib.request.Request(o["url"].rstrip("/") + f"/models/{o['model']}/endpoints",
+    req = urllib.request.Request(o["url"].rstrip("/") + f"/models/{model or o['model']}/endpoints",
                                  headers={"Authorization": f"Bearer {key}"})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
@@ -322,9 +322,10 @@ def consult_stream(answer_log: str):
     prompt = (f"Software and version: {a['software']} {a['version']}\n\n{a['prompt']}\n\n-----\n\n"
               f"Answer already given from the documentation:\n{a['answer']}\n\n-----\n\n"
               "What can you add from your own knowledge that would help this user?")
+    model = cfg["openrouter"].get("consult_model") or cfg["openrouter"]["model"]
     t0 = time.perf_counter()
     parts, usage, meta, thinking = [], {}, {}, False
-    for chunk in stream_openrouter(prompt, cfg, key, system=CONSULT_SYSTEM):
+    for chunk in stream_openrouter(prompt, cfg, key, system=CONSULT_SYSTEM, model=model):
         for k in ("id", "model", "provider"):
             if chunk.get(k) and k not in meta:
                 meta[k] = chunk[k]
@@ -346,7 +347,7 @@ def consult_stream(answer_log: str):
     log = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "answer_log": answer_log,
            "query": a["query"], "software": a["software"], "version": a["version"],
            "model": meta.get("model"), "provider": meta.get("provider"),
-           "quantization": provider_quantization(meta.get("provider"), cfg, key),
+           "quantization": provider_quantization(meta.get("provider"), cfg, key, model),
            "finish_reason": meta.get("finish_reason"),
            "tokens_prompt": usage.get("prompt_tokens"), "tokens_completion": usage.get("completion_tokens"),
            "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
@@ -356,7 +357,7 @@ def consult_stream(answer_log: str):
     stamp = log["at"].replace(":", "").replace("-", "").replace("+0000", "Z")
     (CONSULT_LOG_DIR / f"{stamp}_{a['software']}_{a['version']}.json").write_text(
         json.dumps(log, indent=2, ensure_ascii=False), encoding="utf-8")
-    yield {"type": "done", "provider": log["provider"], "quantization": log["quantization"],
+    yield {"type": "done", "model": log["model"], "provider": log["provider"], "quantization": log["quantization"],
            "cost_usd": log["cost_usd"], "seconds": seconds, "flags": flags, "version": a["version"],
            "empty": not text.strip()}
 
