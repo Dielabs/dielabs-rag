@@ -1,0 +1,17 @@
+# Web GUI del Dielabs RAG (ADR-0009). Installato in /etc/systemd/system/ su richiesta di Diego (2026-10-02).
+[Unit]
+Description=Dielabs RAG - web GUI (porta 8095)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dollaro
+WorkingDirectory=/home/dollaro/dielabs-rag
+ExecStart=/home/dollaro/dielabs-rag/.venv/bin/python src/web.py --port 8095
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
