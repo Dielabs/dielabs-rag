@@ -145,7 +145,9 @@ def ask(query: str, software: str, version: str) -> dict:
     t2 = time.perf_counter()
     resp = call_openrouter(prompt, cfg, key)
     t3 = time.perf_counter()
-    answer = resp["choices"][0]["message"]["content"]
+    choice = resp["choices"][0]
+    # il modello a volte restituisce content vuoto (None), es. se il ragionamento esaurisce max_tokens
+    answer = choice["message"].get("content") or ""
     details = generation_details(resp.get("id", ""), cfg, key) if resp.get("id") else {}
     usage = resp.get("usage", {})
     log = {
@@ -156,7 +158,8 @@ def ask(query: str, software: str, version: str) -> dict:
         "context_chars": sum(s["chars"] for s in sections),
         "model": resp.get("model"), "provider": resp.get("provider"),
         "quantization": provider_quantization(resp.get("provider"), cfg, key),
-        "provider_name": details.get("provider_name"), "finish_reason": details.get("finish_reason"),
+        "provider_name": details.get("provider_name"), "finish_reason": details.get("finish_reason") or choice.get("finish_reason"),
+        "tokens_reasoning": usage.get("completion_tokens_details", {}).get("reasoning_tokens"),
         "tokens_prompt": usage.get("prompt_tokens"), "tokens_completion": usage.get("completion_tokens"),
         "cost_usd": usage.get("cost", details.get("total_cost")),
         "seconds_search": round(t1 - t0, 3), "seconds_context": round(t2 - t1, 3),

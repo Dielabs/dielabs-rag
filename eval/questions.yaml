@@ -1,0 +1,87 @@
+# Set di domande di prova (Fase 1, Blocco 7). Scritte dall'assistente su richiesta di Diego il 2026-10-02.
+# La pagina attesa è fissata PRIMA di lanciare la ricerca, guardando il contenuto del corpus.
+# expected: una o più pagine (path del corpus) dove la risposta c'è davvero; basta trovarne una.
+
+- id: vllm-01
+  software: vllm
+  version: "0.30.0"
+  question: "My vLLM server crashes with CUDA out of memory when loading a big model. What options do I have to reduce memory usage?"
+  expected: [configuration/conserving_memory/]
+
+- id: vllm-02
+  software: vllm
+  version: "0.30.0"
+  question: "How do I tell vLLM to use only 80% of the GPU memory?"
+  expected: [cli/serve/, configuration/engine_args/]
+
+- id: vllm-03
+  software: vllm
+  version: "0.30.0"
+  question: "I have one server with 4 GPUs and the model does not fit on a single GPU. How should I split it?"
+  expected: [serving/parallelism_scaling/]
+
+- id: vllm-04
+  software: vllm
+  version: "0.30.0"
+  question: "Can I store the KV cache in FP8 to fit more requests, and how do I enable it?"
+  expected: [features/quantization/quantized_kvcache/]
+
+- id: vllm-05
+  software: vllm
+  version: "0.30.0"
+  question: "Where can I see Prometheus metrics like number of waiting requests and KV cache usage?"
+  expected: [usage/metrics/, design/metrics/]
+
+- id: vllm-06
+  software: vllm
+  version: "0.30.0"
+  question: "How do I run prefill and decode on separate vLLM instances?"
+  expected: [features/disagg_prefill/, features/nixl_connector_usage/]
+
+- id: vllm-07
+  software: vllm
+  version: "0.30.0"
+  question: "How can I serve several LoRA adapters on top of one base model?"
+  expected: [features/lora/]
+
+- id: vllm-08
+  software: vllm
+  version: "0.30.0"
+  question: "Which server flags do I need so the model can call tools through the OpenAI API?"
+  expected: [features/tool_calling/]
+
+- id: vllm-09
+  software: vllm
+  version: "0.30.0"
+  question: "How should I tune max-num-batched-tokens to trade latency for throughput?"
+  expected: [configuration/optimization/]
+
+- id: vllm-10
+  software: vllm
+  version: "0.30.0"
+  question: "Can vLLM move the KV cache to CPU RAM when GPU memory is full?"
+  expected: [features/kv_offloading_usage/]
+
+- id: guidellm-01
+  software: guidellm
+  version: "0.8.0"
+  question: "How do I run a sweep of request rates against my vLLM server?"
+  expected: [getting-started/benchmark/]
+
+- id: guidellm-02
+  software: guidellm
+  version: "0.8.0"
+  question: "What is the difference between TTFT and ITL in the results?"
+  expected: [guides/metrics/]
+
+- id: guidellm-03
+  software: guidellm
+  version: "0.8.0"
+  question: "How do I benchmark with my own prompts stored in a JSONL file?"
+  expected: [guides/datasets/, examples/custom-jsonl-dataset/]
+
+- id: guidellm-04
+  software: guidellm
+  version: "0.8.0"
+  question: "How do I check if the server meets a latency target like TTFT under 500 ms?"
+  expected: [guides/service_level_objectives/]

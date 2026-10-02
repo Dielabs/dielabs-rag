@@ -2,7 +2,7 @@
 PY := .venv/bin/python
 SOFTWARE ?= vllm
 
-.PHONY: venv versions build extract corpus qdrant chunks load report search ask
+.PHONY: venv versions build extract corpus qdrant chunks load report search ask eval eval-answer
 
 venv:
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
@@ -42,3 +42,9 @@ search:            ## ricerca su una KB, es. make search SOFTWARE=vllm VERSION=0
 ask:               ## risposta con citazioni su una KB, es. make ask SOFTWARE=vllm VERSION=0.30.0 Q="how do I enable prefix caching"
 	@test -n "$(Q)" || (echo "Serve Q=\"domanda\""; exit 1)
 	$(PY) src/answer.py $(SOFTWARE) $(VERSION) -- "$(Q)"
+
+eval:              ## valutazione della ricerca con eval/questions.yaml (gratis, tutto in locale)
+	$(PY) src/evaluate.py
+
+eval-answer:       ## valutazione di ricerca e risposta (chiama OpenRouter, costa circa 0,01 $)
+	$(PY) src/evaluate.py --answer
