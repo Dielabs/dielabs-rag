@@ -57,3 +57,35 @@ if __name__ == "__main__":
     args = p.parse_args()
     for v in resolve_versions(load(args.software)):
         print(v)
+
+
+# ---- Infinity (embedding e reranker, GPU del notebook): errore chiaro quando non risponde ----
+INFINITY_DOWN_MESSAGE = ("Non riesco a raggiungere la GPU del notebook (serve per cercare nella documentazione). "
+                         "Accendila e riprova.")
+
+
+class InfinityDown(Exception):
+    """Infinity non raggiungibile: GPU spenta, notebook in sospensione o rete giù."""
+
+
+def check_infinity(url: str, timeout: float = 3.0) -> None:
+    """Controllo rapido della porta, per fallire in pochi secondi invece di aspettare il timeout lungo."""
+    import socket
+    from urllib.parse import urlparse
+    u = urlparse(url)
+    try:
+        socket.create_connection((u.hostname, u.port or 80), timeout=timeout).close()
+    except OSError as e:
+        raise InfinityDown(INFINITY_DOWN_MESSAGE) from e
+
+
+def call_infinity(req, timeout: float):
+    """urlopen verso Infinity: un errore di connessione diventa InfinityDown, una risposta di errore resta com'è."""
+    import urllib.error
+    import urllib.request
+    try:
+        return urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        raise InfinityDown(INFINITY_DOWN_MESSAGE) from e

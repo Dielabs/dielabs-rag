@@ -14,7 +14,7 @@ import urllib.request
 import yaml
 from qdrant_client import QdrantClient, models
 
-from sources import ROOT
+from sources import ROOT, call_infinity
 
 DATA = ROOT / "data"
 PAYLOAD_SKIP = {"id", "embed_text"}
@@ -29,7 +29,7 @@ def embed(texts: list[str], cfg: dict) -> list[list[float]]:
     body = json.dumps({"model": cfg["model"], "input": texts}).encode()
     req = urllib.request.Request(cfg["url"].rstrip("/") + "/embeddings", data=body,
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=cfg.get("timeout", 300)) as r:
+    with call_infinity(req, cfg.get("timeout", 300)) as r:
         data = json.load(r)["data"]
     return [d["embedding"] for d in sorted(data, key=lambda d: d["index"])]
 

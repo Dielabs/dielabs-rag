@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from qdrant_client import QdrantClient, models
 
 from load import embed, kb_filter, load_config
-from sources import ROOT, load as load_source
+from sources import ROOT, call_infinity, check_infinity, load as load_source
 
 LOG_DIR = ROOT / "data" / "logs" / "search"
 
@@ -24,7 +24,7 @@ def rerank(query: str, texts: list[str], cfg: dict) -> list[float]:
     body = json.dumps({"model": cfg["model"], "query": query, "documents": texts}).encode()
     req = urllib.request.Request(cfg["url"].rstrip("/") + "/rerank", data=body,
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=cfg.get("timeout", 120)) as r:
+    with call_infinity(req, cfg.get("timeout", 120)) as r:
         results = json.load(r)["results"]
     scores = [0.0] * len(texts)
     for x in results:
@@ -90,6 +90,8 @@ def merge_parts(ranked: list[dict]) -> list[dict]:
 
 def search(query: str, software: str, version: str) -> dict:
     cfg = load_config()
+    for url in {cfg["embedding"]["url"], cfg["reranker"]["url"]}:
+        check_infinity(url)          # GPU spenta: errore chiaro in pochi secondi
     s = cfg["search"]
     prefer_paths = load_source(software).get("search", {}).get("prefer_paths", [])
     t0 = time.perf_counter()

@@ -22,7 +22,7 @@ from pathlib import Path
 
 import update as update_mod
 from answer import ask_stream, consult_stream
-from sources import ROOT, SOURCES_DIR, load as load_source
+from sources import ROOT, SOURCES_DIR, InfinityDown, load as load_source
 
 WEB = ROOT / "web"
 STATIC = {"style.css": "text/css; charset=utf-8", "app.js": "application/javascript; charset=utf-8"}
@@ -181,6 +181,11 @@ class Handler(BaseHTTPRequestHandler):
                 emit(event)
         except (BrokenPipeError, ConnectionResetError):
             pass          # la pagina è stata chiusa durante la risposta
+        except InfinityDown as e:
+            try:
+                emit({"type": "error", "message": str(e), "friendly": True})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
         except Exception as e:
             traceback.print_exc()
             try:

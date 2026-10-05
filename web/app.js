@@ -186,14 +186,18 @@ async function chiedi(q) {
             `<p class="meta">${esc(ev.provider || "provider n/d")}, ${esc(ev.quantization || "precisione n/d")}, ${costo}, ${String(ev.seconds).replace(".", ",")} s</p>`);
           if (ev.log && !ev.empty) bottoneConsulente(giro, ev.log, version);
         } else if (ev.type === "error") {
-          throw new Error(ev.message);
+          const e = new Error(ev.message);
+          e.friendly = !!ev.friendly;
+          throw e;
         }
       }
     }
   } catch (err) {
     if (stato.isConnected) stato.remove();
     risposta.classList.remove("scrive");
-    giro.insertAdjacentHTML("beforeend", `<p class="errore">Risposta interrotta: ${esc(err.message)}. Il dettaglio è nel log del server.</p>`);
+    giro.insertAdjacentHTML("beforeend", err.friendly
+      ? `<p class="errore">${esc(err.message)}</p>`
+      : `<p class="errore">Risposta interrotta: ${esc(err.message)}. Il dettaglio è nel log del server.</p>`);
   }
 }
 
