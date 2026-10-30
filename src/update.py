@@ -110,7 +110,7 @@ def run(software: str, on_event=print) -> dict:
     try:
         p = plan(software)
         log["plan"] = p
-        on_event({"type": "plan", **p})
+        on_event({**p, "type": "plan"})  # "type" di p è il tipo di sorgente: l'evento resta "plan"
         builder = CORPUS_BUILDERS[p["type"]]
         for v in p["add"]:
             builder(software, v, step)
