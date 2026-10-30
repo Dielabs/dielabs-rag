@@ -11,6 +11,7 @@ versions:
 
 markdown:
   include:
-    - docs/*.md       # solo docs/ (deciso con Diego il 2026-10-30); i README dei singoli task restano fuori
+    - README.md       # guida d'uso principale (installazione, backend, modelli), fuori da docs/
+    - docs/*.md       # i README dei singoli task (lm_eval/tasks/) restano fuori (2026-10-30)
   exclude: []
   public_url: https://github.com/EleutherAI/lm-evaluation-harness/blob/v{version}/
