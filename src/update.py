@@ -5,8 +5,8 @@ poi toglie quelle uscite dalla lista. Prima carica, poi toglie: non c'è mai un 
 documentazione, e le domande restano possibili durante l'aggiornamento. Se un'aggiunta fallisce
 non si toglie niente.
 
-Il modo di prendere la documentazione dipende dal tipo di sorgente della scheda (`type`, oggi solo
-`mkdocs`): per un software con un altro sistema (es. Fern, Sphinx) si aggiunge un costruttore
+Il modo di prendere la documentazione dipende dal tipo di sorgente della scheda (`type`: `mkdocs`
+o `markdown`): per un software con un altro sistema (es. Fern, Sphinx) si aggiunge un costruttore
 in CORPUS_BUILDERS, senza toccare il resto.
 
     python src/update.py vllm --plan     solo cosa farebbe
@@ -25,6 +25,7 @@ import build as build_mod
 import chunk as chunk_mod
 import extract as extract_mod
 import load as load_mod
+import markdown_source as md_mod
 from sources import ROOT, load as load_source, resolve_versions
 
 DATA = ROOT / "data"
@@ -39,7 +40,12 @@ def corpus_mkdocs(software: str, version: str, step) -> None:
     extract_mod.extract(software, version)
 
 
-CORPUS_BUILDERS = {"mkdocs": corpus_mkdocs}
+def corpus_markdown(software: str, version: str, step) -> None:
+    step(f"Leggo i Markdown di {version}")
+    md_mod.corpus(software, version)
+
+
+CORPUS_BUILDERS = {"mkdocs": corpus_mkdocs, "markdown": corpus_markdown}
 
 
 def vkey(v: str) -> tuple:

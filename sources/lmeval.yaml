@@ -1,0 +1,16 @@
+# Scheda di configurazione del software lm-evaluation-harness (EleutherAI), detto lm-eval.
+name: lmeval
+display_name: lm-eval
+repo: https://github.com/EleutherAI/lm-evaluation-harness.git
+type: markdown        # nessun sito da costruire: si leggono i Markdown del repo al tag (ADR-0010)
+
+versions:
+  # ultime due release stabili (tag), come GuideLLM (ADR-0001)
+  rule: latest_release
+  keep: 2
+
+markdown:
+  include:
+    - docs/*.md       # solo docs/ (deciso con Diego il 2026-10-30); i README dei singoli task restano fuori
+  exclude: []
+  public_url: https://github.com/EleutherAI/lm-evaluation-harness/blob/v{version}/
