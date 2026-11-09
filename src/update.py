@@ -26,7 +26,7 @@ import chunk as chunk_mod
 import extract as extract_mod
 import load as load_mod
 import markdown_source as md_mod
-from sources import ROOT, load as load_source, resolve_versions
+from sources import ROOT, branch_of, load as load_source, remote_head, resolve_versions, version_key
 
 DATA = ROOT / "data"
 LOCK = DATA / "update.lock"
@@ -48,8 +48,14 @@ def corpus_markdown(software: str, version: str, step) -> None:
 CORPUS_BUILDERS = {"mkdocs": corpus_mkdocs, "markdown": corpus_markdown}
 
 
-def vkey(v: str) -> tuple:
-    return tuple(int(x) for x in v.split("."))
+vkey = version_key
+
+
+def branch_moved(software: str, source: dict, version: str) -> bool:
+    """Per una versione da branch: il branch è andato avanti rispetto al commit caricato?"""
+    info = DATA / "corpus" / software / version / "extract.json"
+    loaded = json.loads(info.read_text()).get("commit") if info.exists() else None
+    return loaded != remote_head(source["repo"], branch_of(source, version))
 
 
 def loaded_versions(software: str) -> list[str]:
@@ -66,9 +72,11 @@ def plan(software: str) -> dict:
     if not wanted:
         raise SystemExit("Nessuna versione da tenere: non aggiorno.")
     present = loaded_versions(software)
+    # una versione da branch già caricata si ricarica se il branch è cambiato (es. 0.5-dev di lm-eval)
+    refresh = [v for v in wanted if v in present and branch_of(source, v) and branch_moved(software, source, v)]
     return {"software": software, "display_name": source.get("display_name", software), "type": kind,
             "wanted": wanted, "present": present,
-            "add": sorted(set(wanted) - set(present), key=vkey),
+            "add": sorted((set(wanted) - set(present)) | set(refresh), key=vkey),
             "remove": sorted(set(present) - set(wanted), key=vkey)}
 
 

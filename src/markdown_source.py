@@ -6,14 +6,21 @@ Output: data/corpus/<software>/<versione>/pages.jsonl, stesso formato dell'estra
 (software, versione, percorso, indirizzo pubblico, titolo, testo, titoli come [livello, id]).
 Gli id dei titoli seguono la regola di GitHub, così i link alle sezioni funzionano.
 
+Una versione presa da un branch (versions.branches nella scheda) può avere un suo blocco `markdown`.
+Con `url_style: site` i Markdown sono il sorgente di un sito (MkDocs/Zensical, docs/ come cartella):
+docs/a/b.md diventa <public_url>a/b/ e gli id dei titoli seguono la regola del sito (Python-Markdown),
+così le citazioni puntano alle pagine pubblicate (lm-eval 0.5-dev su readthedocs, 2026-11-09).
+
     python src/markdown_source.py lmeval 0.4.13
 """
 import argparse
 import json
 import re
+import subprocess
+import unicodedata
 
 from build import clone
-from sources import ROOT, load
+from sources import ROOT, branches, load
 
 DATA = ROOT / "data"
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -32,8 +39,18 @@ def slug(text: str) -> str:
     return t.replace(" ", "-")
 
 
-def headings(md: str) -> list[list]:
-    """Titoli ATX fuori dai blocchi di codice, in ordine, con id unici come su GitHub (-1, -2...)."""
+def slug_site(text: str) -> str:
+    """Id di un titolo come lo calcola un sito MkDocs/Zensical (slugify di Python-Markdown)."""
+    t = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    t = re.sub(r"<[^>]+>", "", t).replace("`", "")
+    t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode("ascii")
+    t = re.sub(r"[^\w\s-]", "", t).strip().lower()
+    return re.sub(r"[-\s]+", "-", t)
+
+
+def headings(md: str, site: bool = False) -> list[list]:
+    """Titoli ATX fuori dai blocchi di codice, in ordine, con id unici: come su GitHub (-1, -2...)
+    oppure, con site=True, come su un sito MkDocs/Zensical (_1, _2...)."""
     out, seen, infence = [], {}, False
     for line in md.split("\n"):
         if is_fence(line):
@@ -42,10 +59,10 @@ def headings(md: str) -> list[list]:
         m = None if infence else HEADING.match(line)
         if not m:
             continue
-        base = slug(m.group(2))
+        base = slug_site(m.group(2)) if site else slug(m.group(2))
         n = seen.get(base, 0)
         seen[base] = n + 1
-        out.append([len(m.group(1)), base if n == 0 else f"{base}-{n}"])
+        out.append([len(m.group(1)), base if n == 0 else f"{base}{'_' if site else '-'}{n}"])
     return out
 
 
@@ -60,11 +77,23 @@ def title_of(md: str, path: str) -> str:
     return path.rsplit("/", 1)[-1].removesuffix(".md")
 
 
+def page_url(base: str, rel: str, site: bool) -> str:
+    """Indirizzo pubblico di un file: sul repo (rel così com'è) o sul sito (docs/a/b.md -> a/b/)."""
+    if not site:
+        return base + rel
+    p = rel.removeprefix("docs/").removesuffix(".md")
+    p = "" if p == "index" else p.removesuffix("/index") + "/"
+    return base + p
+
+
 def corpus(software: str, version: str) -> dict:
     source = load(software)
-    cfg = source["markdown"]
+    cfg = (branches(source).get(version) or {}).get("markdown") or source["markdown"]
+    site = cfg.get("url_style") == "site"
     src = DATA / "src" / software / version
     clone(source, version, src)
+    commit = subprocess.run(["git", "-C", str(src), "rev-parse", "HEAD"],
+                            check=True, capture_output=True, text=True).stdout.strip()
     files = sorted({p for pat in cfg["include"] for p in src.glob(pat) if p.is_file()})
     exclude = cfg.get("exclude", [])
     out_dir = DATA / "corpus" / software / version
@@ -80,13 +109,13 @@ def corpus(software: str, version: str) -> dict:
             if not md:
                 skipped.append(rel)
                 continue
-            rec = {"software": software, "version": version, "path": rel, "url": base + rel,
-                   "title": title_of(md, rel), "markdown": md, "headings": headings(md)}
+            rec = {"software": software, "version": version, "path": rel, "url": page_url(base, rel, site),
+                   "title": title_of(md, rel), "markdown": md, "headings": headings(md, site)}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             written += 1
     if written == 0:
         raise SystemExit("Nessun file Markdown trovato: controlla markdown.include nella scheda.")
-    summary = {"software": software, "version": version, "pages": written,
+    summary = {"software": software, "version": version, "commit": commit, "pages": written,
                "skipped": skipped, "output": str(out_dir / "pages.jsonl")}
     (out_dir / "extract.json").write_text(json.dumps(summary, indent=2))
     return summary

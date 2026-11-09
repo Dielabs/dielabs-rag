@@ -5,11 +5,23 @@ repo: https://github.com/EleutherAI/lm-evaluation-harness.git
 type: markdown        # nessun sito da costruire: si leggono i Markdown del repo al tag (ADR-0010)
 
 versions:
-  # ultime due release stabili (tag), come GuideLLM (ADR-0001)
+  # ultima release stabile (tag); era 2 come GuideLLM fino al 2026-11-09 (ADR-0001)
   rule: latest_release
-  keep: 2
+  keep: 1
+  # in più l'anteprima della 0.5, non ancora rilasciata (2026-11-09)
+  branches:
+    0.5-dev:
+      branch: nextdocs   # sorgente del sito https://lm-evaluation-harness.readthedocs.io/ (versione "latest")
+      markdown:
+        include:
+          - docs/**/*.md
+        exclude:
+          - docs/api/                # riferimento API escluso (ADR-0001)
+          - docs/docstring_guide.md  # guida interna per chi scrive il codice, non pubblicata nel sito
+        public_url: https://lm-evaluation-harness.readthedocs.io/
+        url_style: site              # docs/a/b.md -> <public_url>a/b/, citazioni verso le pagine del sito
 
-markdown:
+markdown:             # le release (tag)
   include:
     - README.md       # guida d'uso principale (installazione, backend, modelli), fuori da docs/
     - docs/*.md       # i README dei singoli task (lm_eval/tasks/) restano fuori (2026-10-30)

@@ -22,11 +22,11 @@ from pathlib import Path
 
 import update as update_mod
 from answer import ask_stream, consult_stream
-from sources import ROOT, SOURCES_DIR, InfinityDown, load as load_source
+from sources import ROOT, SOURCES_DIR, InfinityDown, load as load_source, version_key
 
 WEB = ROOT / "web"
 STATIC = {"style.css": "text/css; charset=utf-8", "app.js": "application/javascript; charset=utf-8"}
-VERSION = re.compile(r"^\d+\.\d+\.\d+$")
+VERSION = re.compile(r"^\d+\.\d+(\.\d+)?(-[a-z0-9]+)?$")   # 0.30.0, anche 0.5-dev (versione da branch)
 MAX_QUESTION = 2000
 
 
@@ -40,7 +40,7 @@ def kbs() -> list[dict]:
             v = d.parent.name
             if VERSION.match(v):
                 versions.append(v)
-        versions.sort(key=lambda v: tuple(int(x) for x in v.split(".")))
+        versions.sort(key=version_key)
         if versions:
             latest = json.loads((ROOT / "data" / "chunks" / path.stem / versions[-1] / "load.json").read_text())
             out.append({"name": path.stem, "display_name": src.get("display_name", path.stem),

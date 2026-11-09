@@ -12,7 +12,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from sources import ROOT, load
+from sources import ROOT, branch_of, load
 
 DATA = ROOT / "data"
 
@@ -21,8 +21,9 @@ def clone(source: dict, version: str, dest: Path) -> None:
     if dest.exists():
         shutil.rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    ref = branch_of(source, version) or f"v{version}"   # versione da branch oppure tag della release
     subprocess.run(
-        ["git", "clone", "--quiet", "--depth", "1", "--branch", f"v{version}",
+        ["git", "clone", "--quiet", "--depth", "1", "--branch", ref,
          source["repo"], str(dest)],
         check=True,
     )

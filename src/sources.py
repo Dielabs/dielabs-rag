@@ -30,8 +30,38 @@ def remote_tags(repo: str) -> list[str]:
     return tags
 
 
+def version_key(v: str) -> tuple:
+    """Ordine delle versioni: "0.4.13" < "0.5-dev" < "0.5.0" (una -dev viene prima della release con lo stesso numero)."""
+    num, _, tag = v.partition("-")
+    return tuple(int(x) for x in num.split(".")), tag == ""
+
+
+def branches(source: dict) -> dict:
+    """Versioni prese da un branch invece che da un tag (versions.branches nella scheda, ADR-0010)."""
+    return source["versions"].get("branches") or {}
+
+
+def branch_of(source: dict, version: str) -> str | None:
+    b = branches(source).get(version)
+    return b["branch"] if b else None
+
+
+def remote_head(repo: str, branch: str) -> str:
+    out = subprocess.run(
+        ["git", "ls-remote", "--heads", repo, branch], check=True, capture_output=True, text=True
+    ).stdout.split()
+    if not out:
+        raise SystemExit(f"Branch {branch} non trovato in {repo}")
+    return out[0]
+
+
 def resolve_versions(source: dict) -> list[str]:
-    """Versioni da tenere, dalla più vecchia alla più recente, senza 'v'."""
+    """Versioni da tenere, dalla più vecchia alla più recente, senza 'v': le release secondo la regola,
+    più le eventuali versioni da branch (versions.branches)."""
+    return sorted(release_versions(source) + list(branches(source)), key=version_key)
+
+
+def release_versions(source: dict) -> list[str]:
     rule = source["versions"]["rule"]
     keep = source["versions"]["keep"]
     stable = []
